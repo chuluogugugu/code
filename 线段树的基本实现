@@ -1,0 +1,137 @@
+//标准线段树实现
+//实现顺序：设置数组arr,sum,add_
+//设置函数：lazy,up,down,build,puery,add
+
+
+#include <algorithm>
+#include <iostream>
+#include <string>
+#include <vector>
+#include <queue>
+#include<map>
+#include<random>
+using namespace std;
+using ll = long long;
+
+vector<int>arr, sum, add_;
+
+void lazy(int idx, int v, int len)//修改懒信息和线段树
+{
+	sum[idx] += len * v;
+	add_[idx] += v;
+}
+
+void down(int idx, int llen, int rlen)//将懒信息进行下发
+{
+	if (add_[idx] != 0)
+	{
+		lazy(idx << 1, add_[idx], llen);
+		lazy(idx << 1 | 1, add_[idx], rlen);
+		add_[idx] = 0;
+	}
+}
+void up(int idx)//向上汇总sum
+{
+	sum[idx] = sum[idx << 1] + sum[idx << 1 | 1];
+}
+
+void build(int l, int r, int idx)//建树
+{
+	if (l == r)
+	{
+		sum[idx] = arr[l];
+	}
+	else
+	{
+		int mid = l + r >> 1;
+		build(l, mid, idx << 1);
+		build(mid + 1, r, idx << 1 | 1);
+		up(idx);
+	}
+}
+
+int query(int jobl, int jobr, int l, int r, int idx)//进行区间的查询
+{
+	if (jobl <= l && jobr >= r)
+	{
+		return sum[idx];
+	}
+	int mid = l + r >> 1;
+	int ans = 0;
+	if (jobl <= mid)
+	{
+		ans += query(jobl, jobr, l, mid, idx << 1);
+	}
+	if (jobr > mid)
+	{
+		ans += query(jobl, jobr, mid + 1, r, idx << 1 | 1);
+	}
+	return ans;
+}
+
+void add(int jobl, int jobr, int jobv, int l, int r, int idx)//进行区间的修改
+{
+	if (jobl <= l && jobr >= r)
+	{
+		lazy(idx, jobv, r - l + 1);
+	}
+	else
+	{
+		int mid = l + r >> 1;
+		down(idx, mid-l + 1, r - mid);
+		if (jobl <= mid)
+		{
+			add(jobl, jobr, jobv, l, mid, idx << 1);
+		}
+		if (jobr > mid)
+		{
+			add(jobl, jobr, jobv, mid + 1, r, idx << 1 | 1);
+		}
+		up(idx);
+	}
+}
+
+void work()
+{
+	int n;
+	cin >> n;
+	arr.resize(n + 1);
+	sum.resize(4 * n, 0);
+	add_.resize(4 * n, 0);
+	for (int i = 1; i <= n; i++)cin >> arr[i];
+	build(1, n, 1);
+	for (int i = 1; i < 4 * n; i++)
+	{
+		cout << sum[i] << " ";
+	}
+	int q;
+	cin >> q;
+	while (q--)
+	{
+		int op;
+		cin >> op;
+		if (op)
+		{
+			int l, r;
+			cin >> l >> r;
+			cout << query(l, r, 1, n, 1) << "\n";
+		}
+		else
+		{
+			int l, r,v;
+			cin >> l >> r>>v;
+			add(l, r, v, 1, n, 1);
+		}
+	}
+}
+
+int main() {
+	ios::sync_with_stdio(0);
+	cin.tie(0);
+	int _ = 1;
+	cin >> _;
+	while (_--) {
+		work();
+	}
+	return 0;
+}
