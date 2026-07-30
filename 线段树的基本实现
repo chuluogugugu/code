@@ -57,6 +57,7 @@ int query(int jobl, int jobr, int l, int r, int idx)//进行区间的查询
 		return sum[idx];
 	}
 	int mid = l + r >> 1;
+	down(idx,mid-l+1,r-mid);
 	int ans = 0;
 	if (jobl <= mid)
 	{
