@@ -1,0 +1,165 @@
+#include <algorithm>
+#include <iostream>
+#include <string>
+#include <vector>
+#include <queue>
+#include<map>
+#include<random>
+#include <climits>
+using namespace std;
+using ll = long long;
+class Node
+{
+public:
+	int to;      // 边的终点
+	ll cup;      // 【修复3】残留容量：当前还能流过多少流量（反向边初始为 0，流过流量后用来"退流"）
+	int rev;     // 反向边在对方邻接表中的下标：改这条边的流量时，同步给反向边加回来
+	bool ori;    // 【修复2】是否是 add() 添加的原始正向边（反向边为 false）。输出最小割边集时用来过滤伪割边
+	Node(int v, ll w, int a, bool b) :to(v), cup(w), rev(a), ori(b)
+	{}
+};
+class dinic
+{
+public:
+	int n;                   // 点数
+	vector<vector<Node>>arr; // 邻接表：arr[u] 存所有从 u 出发的边（正向边 + 反向边都存）
+	vector<int>level;        // BFS 分层：level[v] = 残留网络中从 s 到 v 的最短边数
+	vector<int>cur;          // 当前弧优化：cur[u] 表示 u 的邻接表已经扫到哪了，扫过且推不动流的边本轮不再重试
+	vector<int>mincut_ans;   // 最大流结束后，残留网络中从 s 可达的节点 = 最小割的 S 侧
+
+	dinic(int n):n(n)
+	{
+		arr.resize(n);
+		cur.resize(n);
+		level.resize(n);
+	}
+
+	// 加一条 u -> v 容量为 w 的有向边，同时建容量为 0 的反向边（反向边存在的意义：允许"退流"，让之前的流量改道）
+	void add(int u, int v, ll w)
+	{
+		// 正向边：它的反向边即将插进 arr[v]，位置就是插入前的 arr[v].size()
+		arr[u].push_back({ v, w, (int)arr[v].size(), true });
+		// 反向边：它的反向边就是刚插入的正向边，位置是 arr[u].size()-1
+		arr[v].push_back({ u, 0, (int)arr[u].size() - 1, false });
+	}
+
+	// BFS：在残留网络（只走 cup > 0 的边）上给每个点分层
+	// 返回是否能从 s 到达 t；到达不了说明没有增广路了，最大流结束
+	bool bfs(int s, int t)
+	{
+		fill(level.begin(), level.end(), -1);
+		level[s] = 0;
+		queue<int>q;
+		q.push(s);
+		while (q.size())
+		{
+			int now = q.front();
+			q.pop();
+			for (int i = 0; i < arr[now].size(); i++)
+			{
+				auto& a = arr[now][i];
+				// 只走"未分层 + 还有残留容量"的边；这样 DFS 严格沿 level 递增走，不会死循环
+				if (level[a.to] == -1 && a.cup > 0)
+				{
+					level[a.to] = level[now] + 1;
+					q.push(a.to);
+				}
+			}
+		}
+		return level[t] != -1;
+	}
+
+	// DFS：在分层图上找增广路并真正推送流量
+	// u: 当前点  t: 汇点  f: 从 u 这里最多还能推多少流量
+	// 多路增广：把能推的流量一次性累加完再返回，而不是每条路返回一次（单路版在大图上会慢到 TLE）
+	ll dfs(int u, int t, ll f)
+	{
+		if (u == t)return f;
+		ll res = 0;   // 从 u 实际推出去的流量总和
+		for (int& i = cur[u]; i < (int)arr[u].size(); i++)
+		{
+			Node& e = arr[u][i];
+			// 只走"残留容量 > 0 且恰好是下一层"的边（Dinic 的核心：只沿最短路分层图增广）
+			if (e.cup > 0 && level[e.to] == level[u] + 1)
+			{
+				ll d = dfs(e.to, t, min(e.cup, f - res));  // 瓶颈 = min(这条边还能流多少, 还差多少没凑满)
+				if (d > 0)
+				{
+					e.cup -= d;                            // 正向边扣流量
+					arr[e.to][e.rev].cup += d;             // 反向边加流量 = 可退流量
+					res += d;
+					if (res == f)break;                    // 凑够 f 就停，别多推
+				}
+			}
+		}
+		return res;
+	}
+
+	// 最大流跑完后，最后一次 BFS 是失败的（到不了 t），此时 level 中所有 != -1 的节点
+	// 就是从 s 在残留网络中可达的点，即最小割的 S 侧
+	void get_mincut()
+	{
+		mincut_ans.clear();
+		for (int i = 0; i < n; i++)
+		{
+			if (level[i] != -1)mincut_ans.push_back(i);
+		}
+	}
+	// 主过程：BFS 分层 → DFS 疯狂增广（当前弧优化）→ 直到 BFS 到不了 t
+	// 返回值 = 最大流；结束后可直接用 get_mincut 的 S 侧 / return_mincut 的割边
+	ll maxflow_or_mincut_flow(int s, int t)
+	{
+		ll flow = 0;
+		ll MAX = LLONG_MAX; 
+		while (bfs(s, t))
+		{
+			fill(cur.begin(), cur.end(), 0);   // 每轮 BFS 后重置当前弧（level 变了，之前扫过的地方没意义了）
+			while (true)
+			{
+				ll f = dfs(s, t, MAX);
+				if (f == 0)break;
+				flow += f;
+			}
+		}
+		get_mincut();   // 记录最小割 S 侧
+		return flow;
+	}
+
+	// 输出最小割边集：S 侧 -> T 侧的原始正向边（它们必然已饱和 cup==0，容量和 = 最大流）
+	void return_mincut()
+	{
+		for (int i = 0; i < mincut_ans.size(); i++)
+		{
+			int idx = mincut_ans[i];
+			for (int j = 0; j < arr[idx].size(); j++)
+			{
+				auto& now = arr[idx][j];
+				// 若不判断，反向边（对应 T->S 的原始边，cup 可能恰好为 0）会被误当成割边输出
+				if (now.ori && now.cup == 0 && level[now.to] == -1)
+				{
+					cout << idx << " -> " << now.to << "\n";
+				}
+			}
+		}
+	}
+};
+
+void work()
+{
+	// 用法：
+	// dinic din(n);
+	// din.add(u, v, w);        // 建图
+	// ll ans = din.maxflow_or_mincut_flow(s, t);   // 最大流
+	// din.return_mincut();     // 输出最小割边集
+}
+
+int main() {
+	ios::sync_with_stdio(0);
+	cin.tie(0);
+	int _ = 1;
+	//cin >> _;
+	while (_--) {
+		work();
+	}
+	return 0;
+}
