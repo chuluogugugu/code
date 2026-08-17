@@ -1,0 +1,78 @@
+#include <algorithm>
+#include <iostream>
+#include <string>
+#include <vector>
+#include<queue>
+#include<map>
+#include<set>
+#include<climits>
+#include <unordered_map>
+#include <iomanip>
+#include<stack>
+using namespace std;
+using ll = long long;
+class P
+{
+public:
+	int x;
+	int y;
+	P(){}
+	P(int a, int b) :x(a), y(b){}
+	bool const operator < (P& p)const
+	{
+		return (x == p.x) ? y < p.y : (x < p.x);
+	}
+};
+ll cross(P& a, P& b,P& c)
+{
+	return (b.x-a.x)*(c.y-b.y)-(b.y-a.y)*(c.x-b.x);
+}
+void work()
+{
+	int n;
+	cin >> n;
+	vector<P>point(n);
+	for (int i = 0; i < n; i++)
+	{
+		P& p = point[i];
+		cin >> p.x >> p.y;
+	}
+	if (n <= 1)
+	{
+		return;
+	}
+	sort(point.begin(), point.end());
+	vector<P>s;
+	s.push_back(point[0]);
+	for (int i = 1; i < n; i++)
+	{
+		while (s.size() >= 2 && cross(s[s.size() - 2], s[s.size() - 1], point[i]) <= 0)
+		{
+			s.pop_back();
+		}
+		s.push_back(point[i]);
+	}
+	int idx = s.size();
+	for (int i = n - 2; i >= 0; i--)
+	{
+		while (s.size() > idx && cross(s[s.size() - 2], s[s.size() - 1], point[i]) <= 0)
+		{
+			s.pop_back();
+		}
+		s.push_back(point[i]);
+	}
+	s.pop_back();
+}
+
+int main()
+{
+	ios::sync_with_stdio(0);
+	cin.tie(0);
+	int _ = 1;
+	cin >> _;
+	while (_--)
+	{
+		work();
+	}
+	return 0;
+}
